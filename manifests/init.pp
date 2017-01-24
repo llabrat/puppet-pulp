@@ -3,8 +3,17 @@
 # Install and configure pulp
 #
 # === Parameters:
+#
 # $version::                    pulp package version, it's passed to ensure parameter of package resource
 #                               can be set to specific version number, 'latest', 'present' etc.
+#
+# $crane_debug::                Enable crane debug logging
+#                               type:boolean
+#
+# $crane_port::                 Port for Crane to run on
+#                               type:integer
+#
+# $crane_data_dir::             Directory containing docker v1/v2 artifacts published by pulp
 #
 # $oauth_key::                  string; key to enable OAuth style authentication
 #
@@ -99,6 +108,9 @@
 #
 # $https_chain::                apache chain file for ssl
 #
+# $ssl_username::               Value to use for SSLUsername directive in apache vhost. Defaults to
+#                               SSL_CLIENT_S_DN_CN. Set false to unset directive.
+#
 # $consumers_crl::              Certificate revocation list for consumers which
 #                               are no valid (have had their client certs
 #                               revoked)
@@ -128,6 +140,8 @@
 #                               type:boolean
 #
 # $ssl_verify_client::          Enforce use of SSL authentication for yum repos access
+#
+# $ssl_protocol::               List which versions of the SSL/TLS protocol will be accepted in new connections
 #
 # $serial_number_path::         Path to the serial number file
 #
@@ -193,6 +207,13 @@
 #                               defaults to number of processors and maxs at 8
 #                               type:integer
 #
+# $enable_katello::             Boolean to enable pulp katello plugin. Defaults
+#                               to false
+#                               type:boolean
+#
+# $enable_crane::               Boolean to enable crane docker repository
+#                               type:boolean
+#
 # $enable_rpm::                 Boolean to enable rpm plugin. Defaults
 #                               to true
 #                               type:boolean
@@ -256,8 +277,19 @@
 #
 # $puppet_wsgi_processes::      Number of WSGI processes to spawn for the puppet webapp
 #
+# $migrate_db_timeout::         Change the timeout for pulp-manage-db
+#                               type:integer
+#
+# $show_conf_diff::             Allow showing diff for changes in server.conf and importer.json;
+#                               Warning: may display and log passwords contained in these files.
+#                               Defaults to false
+#                               type:boolean
+# 
 class pulp (
   $version                   = $pulp::params::version,
+  $crane_debug               = $pulp::params::crane_debug,
+  $crane_port                = $pulp::params::crane_port,
+  $crane_data_dir            = $pulp::params::crane_data_dir,
   $db_name                   = $pulp::params::db_name,
   $db_seeds                  = $pulp::params::db_seeds,
   $db_username               = $pulp::params::db_username,
@@ -285,6 +317,7 @@ class pulp (
   $https_cert                = $pulp::params::https_cert,
   $https_key                 = $pulp::params::https_key,
   $https_chain               = $pulp::params::https_chain,
+  $ssl_username              = $pulp::params::ssl_username,
   $user_cert_expiration      = $pulp::params::user_cert_expiration,
   $consumer_cert_expiration  = $pulp::params::consumer_cert_expiration,
   $serial_number_path        = $pulp::params::serial_number_path,
@@ -318,12 +351,15 @@ class pulp (
   $consumers_crl             = $pulp::params::consumers_crl,
   $reset_cache               = $pulp::params::reset_cache,
   $ssl_verify_client         = $pulp::params::ssl_verify_client,
+  $ssl_protocol              = $pulp::params::ssl_protocol,
   $repo_auth                 = $pulp::params::repo_auth,
   $proxy_url                 = $pulp::params::proxy_url,
   $proxy_port                = $pulp::params::proxy_port,
   $proxy_username            = $pulp::params::proxy_username,
   $proxy_password            = $pulp::params::proxy_password,
   $num_workers               = $pulp::params::num_workers,
+  $enable_katello            = $pulp::params::enable_katello,
+  $enable_crane              = $pulp::params::enable_crane,
   $enable_docker             = $pulp::params::enable_docker,
   $enable_rpm                = $pulp::params::enable_rpm,
   $enable_puppet             = $pulp::params::enable_puppet,
@@ -344,7 +380,11 @@ class pulp (
   $disabled_authenticators   = $pulp::params::disabled_authenticators,
   $additional_wsgi_scripts   = $pulp::params::additional_wsgi_scripts,
   $puppet_wsgi_processes     = $pulp::params::puppet_wsgi_processes,
+  $migrate_db_timeout        = $pulp::params::migrate_db_timeout,
+  $show_conf_diff            = $pulp::params::show_conf_diff,
 ) inherits pulp::params {
+  validate_bool($enable_katello)
+  validate_bool($enable_crane)
   validate_bool($enable_docker)
   validate_bool($enable_rpm)
   validate_bool($enable_puppet)
@@ -362,9 +402,11 @@ class pulp (
   validate_bool($messaging_event_notifications_enabled)
   validate_bool($manage_squid)
   validate_bool($lazy_https_retrieval)
+  validate_bool($show_conf_diff)
   validate_array($disabled_authenticators)
   validate_hash($additional_wsgi_scripts)
   validate_integer($max_keep_alive)
+
   if $https_cert {
     validate_absolute_path($https_cert)
   }
@@ -374,15 +416,29 @@ class pulp (
   if $https_chain {
     validate_absolute_path($https_chain)
   }
+  if $ssl_protocol != undef {
+    validate_string($ssl_protocol)
+  }
 
   include ::mongodb::client
   include ::pulp::apache
   include ::pulp::database
   include ::pulp::broker
 
+  if $enable_crane {
+    class { '::pulp::crane':
+      cert     => $https_cert,
+      key      => $https_key,
+      ca_cert  => $ca_cert,
+      port     => $crane_port,
+      data_dir => $crane_data_dir,
+      debug    => $crane_debug,
+    }
+  }
+
   class { '::pulp::install': } ->
   class { '::pulp::config': } ~>
-  class { '::pulp::service': } ~>
-  Service['httpd'] ->
-  Class[pulp]
+  class { '::pulp::service': } ->
+  Class[pulp] ~>
+  Service['httpd']
 }

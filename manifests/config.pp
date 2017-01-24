@@ -9,11 +9,12 @@ class pulp::config {
   }
 
   file { '/etc/pulp/server.conf':
-    ensure  => file,
-    content => template('pulp/server.conf.erb'),
-    owner   => 'apache',
-    group   => 'apache',
-    mode    => '0600',
+    ensure    => file,
+    content   => template('pulp/server.conf.erb'),
+    owner     => 'apache',
+    group     => 'apache',
+    mode      => '0600',
+    show_diff => $pulp::show_conf_diff,
   }
 
   file { '/etc/pki/pulp/content/pulp-global-repo.ca':
@@ -31,29 +32,32 @@ class pulp::config {
     }
 
     file { '/etc/pulp/server/plugins.conf.d/yum_importer.json':
-      ensure  => file,
-      content => template('pulp/yum_importer.json.erb'),
-      owner   => 'root',
-      group   => 'root',
-      mode    => '0644',
+      ensure    => file,
+      content   => template('pulp/yum_importer.json.erb'),
+      owner     => 'root',
+      group     => 'root',
+      mode      => '0644',
+      show_diff => $pulp::show_conf_diff,
     }
 
     file { '/etc/pulp/server/plugins.conf.d/iso_importer.json':
-      ensure  => file,
-      content => template('pulp/iso_importer.json.erb'),
-      owner   => 'root',
-      group   => 'root',
-      mode    => '0644',
+      ensure    => file,
+      content   => template('pulp/iso_importer.json.erb'),
+      owner     => 'root',
+      group     => 'root',
+      mode      => '0644',
+      show_diff => $pulp::show_conf_diff,
     }
   }
 
   if $pulp::enable_docker {
     file { '/etc/pulp/server/plugins.conf.d/docker_importer.json':
-      ensure  => file,
-      content => template('pulp/docker_importer.json.erb'),
-      owner   => 'root',
-      group   => 'root',
-      mode    => '0644',
+      ensure    => file,
+      content   => template('pulp/docker_importer.json.erb'),
+      owner     => 'root',
+      group     => 'root',
+      mode      => '0644',
+      show_diff => $pulp::show_conf_diff,
     }
   }
 
@@ -65,11 +69,12 @@ class pulp::config {
     }
 
     file { '/etc/pulp/server/plugins.conf.d/puppet_importer.json':
-      ensure  => file,
-      content => template('pulp/puppet_importer.json.erb'),
-      owner   => 'root',
-      group   => 'root',
-      mode    => '0644',
+      ensure    => file,
+      content   => template('pulp/puppet_importer.json.erb'),
+      owner     => 'root',
+      group     => 'root',
+      mode      => '0644',
+      show_diff => $pulp::show_conf_diff,
     }
   }
 
@@ -79,6 +84,12 @@ class pulp::config {
     owner   => 'root',
     group   => 'root',
     mode    => '0644',
+  }
+
+  file { $::pulp::rsa_key:
+    owner => 'root',
+    group => 'apache',
+    mode  => '0640',
   }
 
   if $pulp::reset_cache {
@@ -97,6 +108,11 @@ class pulp::config {
       refreshonly => true,
     }
   }
+
+    exec { 'run pulp-gen-ca':
+      command => '/usr/bin/pulp-gen-ca-certificate',
+      creates => '/etc/pki/pulp/ca.crt',
+    }
 
   if $pulp::manage_squid {
     if $::osfamily == 'RedHat' and versioncmp($::operatingsystemrelease, '7') < 0 {

@@ -3,8 +3,7 @@ require 'spec_helper'
 
 describe 'pulp::config' do
   let :default_facts do
-    on_supported_os['redhat-7-x86_64'].merge(:concat_basedir => '/tmp', :mongodb_version => '2.4.14', :processorcount => 3,
-                                             :root_home => '/root')
+    on_supported_os['redhat-7-x86_64'].merge(:processorcount => 3)
   end
 
   context 'with no parameters' do
@@ -47,7 +46,14 @@ describe 'pulp::config' do
 
     it 'should configure server.conf' do
       should contain_file('/etc/pulp/server.conf').
-        with_content(/^topic_exchange: 'amq.topic'$/)
+        with_content(/^topic_exchange: 'amq.topic'$/).
+        with({
+        'ensure'    => 'file',
+        'owner'     => 'apache',
+        'group'     => 'apache',
+        'mode'      => '0600',
+        'show_diff' => false,
+      })
     end
   end
 
@@ -113,8 +119,56 @@ describe 'pulp::config' do
         /"proxy_username": "al",/
       ).with_content(
         /"proxy_password": "beproxyin"/
-      )
+      ).with({
+        'ensure'    => 'file',
+        'owner'     => 'root',
+        'group'     => 'root',
+        'mode'      => '0644',
+        'show_diff' => false,
+      })
+ 
     end
 
+  end
+
+  context "with show_conf_diff enabled" do
+    let :pre_condition do
+      "class {'pulp':
+        show_conf_diff => true,
+        enable_rpm     => true,
+        enable_puppet  => true,
+        enable_docker  => true,
+      }"
+    end
+
+    let :facts do
+      default_facts
+    end
+
+    it 'should configure server.conf' do
+      should contain_file('/etc/pulp/server.conf').
+        with_content(/^topic_exchange: 'amq.topic'$/).
+        with({
+        'ensure'    => 'file',
+        'owner'     => 'apache',
+        'group'     => 'apache',
+        'mode'      => '0600',
+        'show_diff' => true,
+      })
+    end
+ 
+    it "should configure importers" do
+      importer_params = {
+        'ensure'    => 'file',
+        'owner'     => 'root',
+        'group'     => 'root',
+        'mode'      => '0644',
+        'show_diff' => true,
+      }
+      should contain_file("/etc/pulp/server/plugins.conf.d/yum_importer.json").with(importer_params)
+      should contain_file("/etc/pulp/server/plugins.conf.d/iso_importer.json").with(importer_params)
+      should contain_file("/etc/pulp/server/plugins.conf.d/puppet_importer.json").with(importer_params)
+      should contain_file("/etc/pulp/server/plugins.conf.d/docker_importer.json").with(importer_params)
+    end
   end
 end

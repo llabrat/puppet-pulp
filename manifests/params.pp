@@ -15,6 +15,7 @@ class pulp::params {
   $db_ca_path = '/etc/pki/tls/certs/ca-bundle.crt'
   $db_unsafe_autoretry = false
   $db_write_concern = undef
+  $migrate_db_timeout = 300
 
   $server_name = downcase($::fqdn)
   $key_url = '/pulp/gpg'
@@ -53,9 +54,17 @@ class pulp::params {
   $https_cert = $ca_cert
   $https_key = $ca_key
   $https_chain = undef
+  $ssl_username = 'SSL_CLIENT_S_DN_CN'
   $enable_http = false
   $ssl_verify_client = 'require'
+  $ssl_protocol = 'all -SSLv2 -SSLv3'
 
+  $crane_debug = false
+  $crane_port = 5000
+  $crane_data_dir = '/var/lib/pulp/published/docker/v2/app'
+
+  $enable_katello = false
+  $enable_crane = false
   $enable_rpm = true
   $enable_docker = false
   $enable_ostree = false
@@ -100,6 +109,7 @@ class pulp::params {
   $num_workers = min($::processorcount, 8)
 
   $puppet_wsgi_processes = 3
+  $show_conf_diff = false
 
   $node_certificate = '/etc/pki/pulp/nodes/node.crt'
   $node_verify_ssl = true
